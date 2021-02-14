@@ -1,6 +1,6 @@
 # Kubernetes Mutating Webhook for Sidecar Injection
 
-[![GoDoc](https://godoc.org/github.com/morvencao/kube-mutating-webhook-tutorial?status.svg)](https://godoc.org/github.com/morvencao/kube-mutating-webhook-tutorial)
+[![GoDoc](https://godoc.org/github.com/dixneuf19/kube-validating-webhook-arm-check?status.svg)](https://godoc.org/github.com/dixneuf19/kube-validating-webhook-arm-check)
 
 This tutoral shows how to build and deploy a [MutatingAdmissionWebhook](https://kubernetes.io/docs/admin/admission-controllers/#mutatingadmissionwebhook-beta-in-19) that injects a nginx sidecar container into pod prior to persistence of the object.
 

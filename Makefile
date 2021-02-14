@@ -1,98 +1,46 @@
 # Image URL to use all building/pushing image targets;
-# Use your own docker registry and image name for dev/test by overridding the
-# IMAGE_REPO, IMAGE_NAME and IMAGE_TAG environment variable.
-IMAGE_REPO ?= docker.io/morvencao
-IMAGE_NAME ?= sidecar-injector
+DOCKER_REPOSITORY=dixneuf19
+IMAGE_NAME=kube-webhook-arm-checker
+IMAGE_TAG=$(shell git rev-parse --short HEAD)
+DOCKER_IMAGE_PATH=$(DOCKER_REPOSITERY)/$(IMAGE_NAME):$(IMAGE_TAG)
+PLATFORMS=linux/amd64,linux/arm64,linux/386,linux/arm/v7
+KUBE_NAMESPACE=webhook
 
-# Github host to use for checking the source tree;
-# Override this variable ue with your own value if you're working on forked repo.
-GIT_HOST ?= github.com/morvencao
+all: help
 
-PWD := $(shell pwd)
-BASE_DIR := $(shell basename $(PWD))
+## help: Display list of commands
+help: Makefile
+	@sed -n 's|^##||p' $< | column -t -s ':' | sed -e 's|^| |'
 
-# Keep an existing GOPATH, make a private one if it is undefined
-GOPATH_DEFAULT := $(PWD)/.go
-export GOPATH ?= $(GOPATH_DEFAULT)
-TESTARGS_DEFAULT := "-v"
-export TESTARGS ?= $(TESTARGS_DEFAULT)
-DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
-IMAGE_TAG ?= $(shell date +v%Y%m%d)-$(shell git describe --match=$(git rev-parse --short=8 HEAD) --tags --always --dirty)
+## test: Run tests
+test: fmt vet
+	go test ./... -coverprofile cover.out
 
+## build: Build manager binary
+build: fmt vet
+	go build -o bin/webhook main.go
 
-LOCAL_OS := $(shell uname)
-ifeq ($(LOCAL_OS),Linux)
-    TARGET_OS ?= linux
-    XARGS_FLAGS="-r"
-else ifeq ($(LOCAL_OS),Darwin)
-    TARGET_OS ?= darwin
-    XARGS_FLAGS=
-else
-    $(error "This system's OS $(LOCAL_OS) isn't recognized/supported")
-endif
+## run: Run locally
+run: fmt vet
+	go run ./main.go
 
-all: fmt lint test build image
-
-ifeq (,$(wildcard go.mod))
-ifneq ("$(realpath $(DEST))", "$(realpath $(PWD))")
-    $(error Please run 'make' from $(DEST). Current directory is $(PWD))
-endif
-endif
-
-############################################################
-# format section
-############################################################
-
+## fmt: Run go fmt against code
 fmt:
-	@echo "Run go fmt..."
+	go fmt ./...
 
-############################################################
-# lint section
-############################################################
+## vet: Run go vet against code
+vet:
+	go vet ./...
 
-lint:
-	@echo "Runing the golangci-lint..."
+## docker-build: Build the docker image
+docker-build: test
+	docker build -t $(DOCKER_IMAGE_PATH) .
 
-############################################################
-# test section
-############################################################
+## docker-build: Build the docker image for multiple platforms
+docker-build-multi: test
+	@echo "Building docker for platforms $(PLATFORMS)..."
+	docker buildx build --platform $(PLATFORMS) -t $(DOCKER_IMAGE_PATH) .
 
-test:
-	@echo "Running the tests for $(IMAGE_NAME)..."
-	@go test $(TESTARGS) ./...
-
-############################################################
-# build section
-############################################################
-
-build:
-	@echo "Building the $(IMAGE_NAME) binary..."
-	@CGO_ENABLED=0 go build -o build/_output/bin/$(IMAGE_NAME) ./cmd/
-
-build-linux:
-	@echo "Building the $(IMAGE_NAME) binary for Docker (linux)..."
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o build/_output/linux/bin/$(IMAGE_NAME) ./cmd/
-
-############################################################
-# image section
-############################################################
-
-image: build-image push-image
-
-build-image: build-linux
-	@echo "Building the docker image: $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG)..."
-	@docker build -t $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG) -f build/Dockerfile .
-
-push-image: build-image
-	@echo "Pushing the docker image for $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG) and $(IMAGE_REPO)/$(IMAGE_NAME):latest..."
-	@docker tag $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG) $(IMAGE_REPO)/$(IMAGE_NAME):latest
-	@docker push $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG)
-	@docker push $(IMAGE_REPO)/$(IMAGE_NAME):latest
-
-############################################################
-# clean section
-############################################################
-clean:
-	@rm -rf build/_output
-
-.PHONY: all fmt lint check test build image clean
+## docker-push: Push the docker image
+docker-push:
+	docker push ${IMG}

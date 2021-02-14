@@ -1,4 +1,4 @@
-module github.com/morvencao/kube-mutating-webhook-tutorial
+module github.com/dixneuf19/kube-validating-webhook-arm-check
 
 go 1.13
 

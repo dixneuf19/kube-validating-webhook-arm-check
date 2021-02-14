@@ -1,25 +1,23 @@
-FROM alpine:latest
+FROM golang:1.15 as build
 
 # set labels for metadata
-LABEL maintainer="Morven Cao<morvencao@gmail.com>" \
-  name="sidecar-injector" \
-  description="A Kubernetes mutating webhook server that implements sidecar injection" \
-  summary="A Kubernetes mutating webhook server that implements sidecar injection"
+LABEL maintainer="dixneuf19" \
+  repo="https://github.com/dixneuf19/kube-validating-webhook-arm-check"
 
-# set environment variables
-ENV SIDECAR_INJECTOR=/usr/local/bin/sidecar-injector \
-  USER_UID=1001 \
-  USER_NAME=sidecar-injector
+WORKDIR /workspace
 
-# install sidecar-injector binary
-COPY build/_output/linux/bin/sidecar-injector ${SIDECAR_INJECTOR}
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
 
-# copy licenses
-RUN mkdir /licenses
-COPY LICENSE /licenses
+COPY cmd/ cmd/
+RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -a -o webhook main.go
 
-# set entrypoint
-ENTRYPOINT ["/usr/local/bin/sidecar-injector"]
+# Use distroless as minimal base image to package the webhook binary
+# Refer to https://github.com/GoogleContainerTools/distroless for more details
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=builder /workspace/webhook .
+USER nonroot:nonroot
 
-# switch to non-root user
-USER ${USER_UID}
+ENTRYPOINT ["/webhook"]
